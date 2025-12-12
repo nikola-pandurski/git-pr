@@ -17,6 +17,7 @@ import (
 
 const (
 	KeyTags      = "tags"
+	KeyReviewers = "reviewers"
 	KeyRemoteRef = "remote-ref"
 	head         = "HEAD"
 )
@@ -250,6 +251,9 @@ Hint: use "git add -A" and "git stash" to clean up the repository
 				}
 				if tags := commit.GetTags(config.tags...); len(tags) > 0 {
 					must(gh("pr", "edit", strconv.Itoa(commit.PRNumber), "--add-label", strings.Join(tags, ",")))
+				}
+				if reviewers := commit.GetReviewers(config.reviewers...); len(reviewers) > 0 {
+					must(gh("pr", "edit", strconv.Itoa(commit.PRNumber), "--add-reviewer", strings.Join(reviewers, ",")))
 				}
 			}()
 		}

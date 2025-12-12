@@ -83,6 +83,24 @@ func (commit *Commit) GetTags(defaultTags ...string) (tags []string) {
 	return tags
 }
 
+func (commit *Commit) GetReviewers(defaultReviewers ...string) (reviewers []string) {
+	reviewers = append(reviewers, defaultReviewers...)
+	rawReviewers := commit.GetAttr(KeyReviewers)
+	for _, reviewer := range strings.Split(rawReviewers, ",") {
+		reviewer = strings.TrimSpace(reviewer)
+		if reviewer == "" {
+			continue
+		}
+		for _, r := range reviewers {
+			if r == reviewer {
+				continue
+			}
+		}
+		reviewers = append(reviewers, reviewer)
+	}
+	return reviewers
+}
+
 func (commit *Commit) SetAttr(key, value string) {
 	for i, kv := range commit.Attrs {
 		if kv[0] == key {
