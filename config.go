@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -84,8 +85,13 @@ func LoadConfig() (config Config) {
 	flag.BoolVar(&config.includeOtherAuthors, "include-other-authors", false, "Create PRs for commits from other authors (default to false: skip)")
 	flag.BoolVar(&config.dryRun, "dry-run", false, "Show what would be done without making changes")
 	flag.StringVar(&config.stopAfter, "stop-after", "", "Stop after phase: validate|get-commits|rewrite|push|pr-create")
+	flagMain := flag.String("main", "", "Trunk branch name (default: auto-detect from remote HEAD)")
 
-	flagGitHubHosts := flag.String("gh-hosts", "~/.config/gh/hosts.yml", "Path to config.json")
+	ghHostsDefault := "~/.config/gh/hosts.yml"
+	if ghConfigDir := os.Getenv("GH_CONFIG_DIR"); ghConfigDir != "" {
+		ghHostsDefault = filepath.Join(ghConfigDir, "hosts.yml")
+	}
+	flagGitHubHosts := flag.String("gh-hosts", ghHostsDefault, "Path to GitHub hosts config")
 	flagTimeout := flag.Int("timeout", 20, "API call timeout in seconds")
 	flagSetTags := flag.String("default-tags", "", "Set default tags for the current repository (comma separated)")
 	flagTags := flag.String("t", "", "Set tags for current stack, ignore default (comma separated)")
@@ -192,15 +198,19 @@ ERROR: failed to parse remote url:
 		}()
 	}
 	{ // detect remote trunk branch
-		out, err := git("symbolic-ref", "--short", fmt.Sprintf("refs/remotes/%v/HEAD", config.git.remote))
-		if err != nil {
-			exitf("ERROR: failed to detect remote trunk branch")
+		if *flagMain != "" {
+			config.git.remoteTrunk = *flagMain
+		} else {
+			out, err := git("symbolic-ref", "--short", fmt.Sprintf("refs/remotes/%v/HEAD", config.git.remote))
+			if err != nil {
+				exitf("ERROR: failed to detect remote trunk branch")
+			}
+			remoteTrunk := strings.TrimPrefix(out, config.git.remote+"/")
+			if remoteTrunk == "" {
+				exitf("ERROR: failed to detect remote trunk branch")
+			}
+			config.git.remoteTrunk = remoteTrunk
 		}
-		remoteTrunk := strings.TrimPrefix(out, config.git.remote+"/")
-		if remoteTrunk == "" {
-			exitf("ERROR: failed to detect remote trunk branch")
-		}
-		config.git.remoteTrunk = remoteTrunk
 		config.git.localTrunk = config.git.remoteTrunk
 	}
 	{ // get git username and email
