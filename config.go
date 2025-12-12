@@ -29,6 +29,7 @@ var (
 )
 
 const gitconfigTags = "git-pr.tags"
+const gitconfigReviewers = "git-pr.reviewers"
 
 type Config struct {
 	repoDir string // git
@@ -42,9 +43,10 @@ type Config struct {
 	verbose bool          // flag
 	timeout time.Duration // flag
 
-	includeOtherAuthors bool   // flag
-	dryRun              bool   // flag: show what would be done without making changes
-	stopAfter           string // flag: stop after specific phase
+	includeOtherAuthors bool     // flag
+	dryRun              bool     // flag: show what would be done without making changes
+	stopAfter           string   // flag: stop after specific phase
+	reviewers           []string // flag
 }
 
 type ConfigGit struct {
@@ -95,6 +97,8 @@ func LoadConfig() (config Config) {
 	flagTimeout := flag.Int("timeout", 20, "API call timeout in seconds")
 	flagSetTags := flag.String("default-tags", "", "Set default tags for the current repository (comma separated)")
 	flagTags := flag.String("t", "", "Set tags for current stack, ignore default (comma separated)")
+	flagSetReviewers := flag.String("default-reviewers", "", "Set default reviewers for the current repository (comma separated)")
+	flagReviewers := flag.String("r", "", "Set reviewers for current stack, ignore default (comma separated)")
 
 	{ // parse flags
 		usage := "Usage: git pr [OPTIONS]"
@@ -125,6 +129,11 @@ func LoadConfig() (config Config) {
 			printf("Set default tags: %v\n", strings.Join(tags, ", "))
 			os.Exit(0)
 		}
+		if *flagSetReviewers != "" {
+			reviewers := saveGitPRReviewers(strings.Split(*flagSetReviewers, ","))
+			printf("Set default reviewers: %v\n", strings.Join(reviewers, ", "))
+			os.Exit(0)
+		}
 		config.tags = getGitPRConfig()
 		if *flagTags != "" {
 			config.tags = nil // override default tags
@@ -133,6 +142,17 @@ func LoadConfig() (config Config) {
 				tag = strings.TrimSpace(tag)
 				if tag != "" {
 					config.tags = append(config.tags, tag)
+				}
+			}
+		}
+		config.reviewers = getGitPRReviewers()
+		if *flagReviewers != "" {
+			config.reviewers = nil // override default reviewers
+			reviewers := strings.Split(*flagReviewers, ",")
+			for _, reviewer := range reviewers {
+				reviewer = strings.TrimSpace(reviewer)
+				if reviewer != "" {
+					config.reviewers = append(config.reviewers, reviewer)
 				}
 			}
 		}
@@ -362,4 +382,30 @@ func saveGitPRConfig(tags []string) []string {
 	_, _ = git("config", "--unset-all", gitconfigTags)
 	must(git("config", "--add", gitconfigTags, rawTags))
 	return xtags
+}
+
+func getGitPRReviewers() (reviewers []string) {
+	rawReviewers, _ := git("config", "--get", gitconfigReviewers)
+	for _, reviewer := range strings.Split(rawReviewers, ",") {
+		reviewer = strings.TrimSpace(reviewer)
+		if reviewer != "" {
+			reviewers = append(reviewers, reviewer)
+		}
+	}
+	return reviewers
+}
+
+func saveGitPRReviewers(reviewers []string) []string {
+	var xreviewers []string
+	for i := range reviewers {
+		reviewer := strings.TrimSpace(reviewers[i])
+		if reviewer != "" {
+			xreviewers = append(xreviewers, reviewer)
+		}
+	}
+	rawReviewers := strings.Join(xreviewers, ",")
+
+	_, _ = git("config", "--unset-all", gitconfigReviewers)
+	must(git("config", "--add", gitconfigReviewers, rawReviewers))
+	return xreviewers
 }
